@@ -32,10 +32,7 @@ class CUDATemplateKernel(CUDAKernel):
 
     _EXTRA_CPP_ARGS = "size_t* workspace_size, uint8_t* workspace, cudaStream_t stream"
 
-    def __init__(
-        self,
-        kernel_name,
-    ):
+    def __init__(self, kernel_name):
         super().__init__()
         self.kernel_name = kernel_name
         # Mapping from arg name to IRNode.
@@ -274,11 +271,15 @@ class CUDATemplateCaller(ChoiceCaller):
         layout: Layout,
         make_kernel_render: Callable[[str], str],
         bmreq: CUDABenchmarkRequest,
+        can_fuse_node: Callable[[ir.Node], bool],
+        fuse_node: Callable[[ir.Node], None],
     ):
         super().__init__(name, input_nodes, layout)
         self.category = category
         self.make_kernel_render = make_kernel_render
         self.bmreq = bmreq
+        self.can_fuse_node = can_fuse_node
+        self.fuse_node = fuse_node
 
     def benchmark(self, *args, out) -> float:
         assert self.bmreq is not None
@@ -305,5 +306,7 @@ class CUDATemplateCaller(ChoiceCaller):
                 inputs=self.input_nodes,
                 make_kernel_render=self.make_kernel_render,
                 workspace_size=self.bmreq.workspace_size,
+                can_fuse_node=self.can_fuse_node,
+                fuse_node=self.fuse_node,
             )
         )

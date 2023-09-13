@@ -57,22 +57,23 @@ def try_import_cutlass() -> bool:
     )
 
     if os.path.isdir(cutlass_py_full_path):
-        cutlass_file_names = [
-            file_name
-            for file_name in os.listdir(cutlass_py_full_path)
-            if file_name.endswith(".py")
-        ]
-        cutlass_module_names = [file_name[:-3] for file_name in cutlass_file_names]
-        if not os.path.isdir(tmp_cutlass_py_full_path):
-            os.mkdir(tmp_cutlass_py_full_path)
-        for file_name in cutlass_file_names:
-            _gen_cutlass_file(
-                file_name,
-                cutlass_module_names,
-                cutlass_py_full_path,
-                tmp_cutlass_py_full_path,
-            )
-        sys.path.append(tmp_cutlass_py_full_path)
+        if tmp_cutlass_py_full_path not in sys.path:
+            cutlass_file_names = [
+                file_name
+                for file_name in os.listdir(cutlass_py_full_path)
+                if file_name.endswith(".py")
+            ]
+            cutlass_module_names = [file_name[:-3] for file_name in cutlass_file_names]
+            if not os.path.isdir(tmp_cutlass_py_full_path):
+                os.mkdir(tmp_cutlass_py_full_path)
+            for file_name in cutlass_file_names:
+                _gen_cutlass_file(
+                    file_name,
+                    cutlass_module_names,
+                    cutlass_py_full_path,
+                    tmp_cutlass_py_full_path,
+                )
+            sys.path.append(tmp_cutlass_py_full_path)
         try:
             import cutlass_generator  # type: ignore[import]  # noqa: F401
             import cutlass_library  # type: ignore[import]  # noqa: F401
@@ -104,7 +105,6 @@ def _normalize_cuda_arch(arch: str) -> str:
         return "70"
     else:
         raise NotImplementedError(f"Unsupported cuda arch: {arch}")
-
 
 @dataclass
 class CUTLASSArgs:
@@ -251,3 +251,4 @@ def get_max_alignment(inductor_layout: Layout) -> int:
                 return alignment
 
     return 1
+
