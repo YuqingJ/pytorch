@@ -1,7 +1,7 @@
 .. _torch.export:
 
 torch.export
-=====================
+============
 
 .. warning::
     This feature is a prototype under active development and there WILL BE
@@ -12,10 +12,35 @@ Overview
 --------
 
 :func:`torch.export.export` takes an arbitrary Python callable (a
-:class:`torch.nn.Module`, a function or a method) and produces a traced graph
-representing only the Tensor computation of the function in an Ahead-of-Time
-(AOT) fashion, which can subsequently be executed with different outputs or
-serialized.
+:class:`torch.nn.Module`, a function or a method) and, by leveraging a ``backend``,
+produces a traced graph representing only the Tensor computation of the function
+in an Ahead-of-Time (AOT) fashion, which can subsequently be executed with
+different outputs or serialized.
+
+As mentioned above, the export process requires a backend that converts the
+captured model into a domain-specific computational graph. Different backends
+can result in graph representations.
+
+The default backend is called ``dynamo``, but a list of supported backends
+developed by our partners can be see by running :func:`torch.export.list_backends`,
+each of which with its optional dependencies.
+
+Some of the most commonly used backends include:
+
+**Training & inference backends**
+
+.. list-table::
+   :widths: 50 50
+   :header-rows: 1
+
+   * - Backend
+     - Description
+   * - ``torch.export(..., backend="dynamo")``
+     - Uses the TorchDynamo backend to produce a :class:`torch.fx.GraphModule`. The remainder of this page will focus on this backend.
+   * - ``torch.export(..., backend="onnx")``
+     - Uses the TorchDynamo backend to produce a ONNX graph. :doc:`Learn more about the TorchDynamo-based ONNX Exporter <onnx_dynamo>`
+
+Let's see an example using the ``dynamo`` backend to export a simple function.
 
 ::
 
@@ -29,14 +54,16 @@ serialized.
 
     example_args = (torch.randn(10, 10), torch.randn(10, 10))
 
-    exported_program: torch.export.ExportedProgram = export(
-        f, args=example_args
+    exported_program: torch.export.DynamoExportedProgram = export(
+        f, f_args=example_args, backend="dynamo"
     )
     print(exported_program)
 
+The output of the export call is a :class:`torch.export.DynamoExportedProgram`:
+
 .. code-block::
 
-    ExportedProgram:
+    DynamoExportedProgram:
         class GraphModule(torch.nn.Module):
             def forward(self, arg0_1: f32[10, 10], arg1_1: f32[10, 10]):
                 # code: a = torch.sin(x)
@@ -63,9 +90,9 @@ serialized.
         Range constraints: {}
         Equality constraints: []
 
-``torch.export`` produces a clean intermediate representation (IR) with the
-following invariants. More specifications about the IR can be found here (coming
-soon!).
+``torch.export`` with ``dynamo`` backend produces a clean intermediate
+representation (IR) with the following invariants. More specifications about
+the IR can be found here (coming soon!).
 
 * **Soundness**: It is guaranteed to be a sound representation of the original
   program, and maintains the same calling conventions of the original program.
@@ -85,7 +112,8 @@ soon!).
 * **Metadata**: The graph contains metadata captured during tracing, such as a
   stacktrace from user's code.
 
-Under the hood, ``torch.export`` leverages the following latest technologies:
+Under the hood, ``torch.export`` with the ``dynamo`` backend leverages the
+following latest technologies:
 
 * **TorchDynamo (torch._dynamo)** is an internal API that uses a CPython feature
   called the Frame Evaluation API to safely trace PyTorch graphs. This
@@ -152,7 +180,7 @@ An Example
 
 The main entrypoint is through :func:`torch.export.export`, which takes a
 callable (:class:`torch.nn.Module`, function, or method) and sample inputs, and
-captures the computation graph into an :class:`torch.export.ExportedProgram`. An
+captures the computation graph into an :class:`torch.export.DynamoExportedProgram`. An
 example:
 
 ::
@@ -178,14 +206,15 @@ example:
     example_args = (torch.randn(1, 3, 256, 256),)
     example_kwargs = {"constant": torch.ones(1, 16, 256, 256)}
 
-    exported_program: torch.export.ExportedProgram = export(
-        M(), args=example_args, kwargs=example_kwargs
+    # Note: ``backend="dynamo"`` is the default backend, but specifying it here for clarity
+    exported_program: torch.export.DynamoExportedProgram = export(
+        M(), f_args=example_args, f_kwargs=example_kwargs, backend="dynamo"
     )
     print(exported_program)
 
 .. code-block::
 
-    ExportedProgram:
+    DynamoExportedProgram:
         class GraphModule(torch.nn.Module):
             def forward(self, arg0_1: f32[16, 3, 3, 3], arg1_1: f32[16], arg2_1: f32[1, 3, 256, 256], arg3_1: f32[1, 16, 256, 256]):
 
@@ -222,7 +251,7 @@ example:
         Range constraints: {}
         Equality constraints: []
 
-Inspecting the ``ExportedProgram``, we can note the following:
+Inspecting the ``DynamoExportedProgram``, we can note the following:
 
 * The :class:`torch.fx.Graph` contains the computation graph of the original
   program, along with records of the original code for easy debugging.
@@ -284,14 +313,14 @@ run. Such dimensions must be marked dynamic using the
         dynamic_dim(example_args[0], 0) == dynamic_dim(example_args[1], 0),
     ]
 
-    exported_program: torch.export.ExportedProgram = export(
-      M(), args=example_args, constraints=constraints
+    exported_program: torch.export.DynamoExportedProgram = export(
+      M(), f_args=example_args, backend="onnx", options={"constraints": constraints}
     )
     print(exported_program)
 
 .. code-block::
 
-    ExportedProgram:
+    DynamoExportedProgram:
         class GraphModule(torch.nn.Module):
             def forward(self, arg0_1: f32[32, 64], arg1_1: f32[32], arg2_1: f32[64, 128], arg3_1: f32[64], arg4_1: f32[32], arg5_1: f32[s0, 64], arg6_1: f32[s0, 128]):
 
@@ -361,8 +390,8 @@ Some additional things to note:
 Serialization
 ^^^^^^^^^^^^^
 
-To save the ``ExportedProgram``, users can use the :func:`torch.export.save` and
-:func:`torch.export.load` APIs. A convention is to save the ``ExportedProgram``
+To save the ``DynamoExportedProgram``, users can use the :func:`torch.export.save` and
+:func:`torch.export.load` APIs. A convention is to save the ``DynamoExportedProgram``
 using a ``.pt2`` file extension.
 
 An example:
@@ -376,7 +405,7 @@ An example:
         def forward(self, x):
             return x + 10
 
-    exported_program = torch.export.export(MyModule(), torch.randn(5))
+    exported_program = torch.export.export(MyModule(), torch.randn(5), backend="dynamo")
 
     torch.export.save(exported_program, 'exported_program.pt2')
     saved_exported_program = torch.export.load('exported_program.pt2')
@@ -406,19 +435,19 @@ branch that is being taken with the given sample inputs. For example:
             return x - 1
 
     example_inputs = (torch.rand(10, 2),)
-    exported_program = export(fn, example_inputs)
+    exported_program = export(fn, example_inputs, backend="dynamo")
     print(exported_program)
 
 .. code-block::
 
-    ExportedProgram:
+    DynamoExportedProgram:
         class GraphModule(torch.nn.Module):
             def forward(self, arg0_1: f32[10, 2]):
                 add: f32[10, 2] = torch.ops.aten.add.Tensor(arg0_1, 1);
                 return (add,)
 
 The conditional of (``x.shape[0] > 5``) does not appear in the
-``ExportedProgram`` because the example inputs have the static
+``DynamoExportedProgram`` because the example inputs have the static
 shape of (10, 2). Since ``torch.export`` specializes on the inputs' static
 shapes, the else branch (``x - 1``) will never be reached. To preserve the dynamic
 branching behavior based on the shape of a tensor in the traced graph,
@@ -447,12 +476,12 @@ For example:
         return x
 
     example_inputs = (torch.rand(2, 2), 1, 3)
-    exported_program = export(fn, example_inputs)
+    exported_program = export(fn, example_inputs, backend="dynamo")
     print(exported_program)
 
 .. code-block::
 
-    ExportedProgram:
+    DynamoExportedProgram:
         class GraphModule(torch.nn.Module):
             def forward(self, arg0_1: f32[2, 2], arg1_1, arg2_1):
                 add: f32[2, 2] = torch.ops.aten.add.Tensor(arg0_1, 1);
@@ -546,9 +575,13 @@ Read More
 
 API Reference
 -------------
-
+.. py:module:: torch.export.backends
 .. automodule:: torch.export
 .. autofunction:: export
+.. autofunction:: list_backends
+.. autofunction:: register_backend
+.. autofunction:: register_debug_backend
+.. autofunction:: register_experimental_backend
 .. autofunction:: dynamic_dim
 .. autofunction:: constrain_as_size
 .. autofunction:: constrain_as_value
@@ -557,6 +590,7 @@ API Reference
 .. autofunction:: register_dataclass
 .. autoclass:: Constraint
 .. autoclass:: ExportedProgram
+.. autoclass:: DynamoExportedProgram
 
     .. automethod:: module
     .. automethod:: buffers
