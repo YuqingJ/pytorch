@@ -83,12 +83,18 @@ class _ConstraintFactory(type):
             f"Please use torch.export.dynamic_dim() to create one"
         )
 
-    def _create(cls, w_tensor, t_id, dim, constraint_range, shared=None):
-        return super().__call__(w_tensor, t_id, dim, constraint_range, shared)
+    def _create(
+        cls, w_tensor, t_id, dim, constraint_range, shared=None, debug_name=None
+    ):
+        return super().__call__(
+            w_tensor, t_id, dim, constraint_range, shared, debug_name
+        )
 
 
-def _create_constraint(w_tensor, t_id, dim, constraint_range, shared=None):
-    return Constraint._create(w_tensor, t_id, dim, constraint_range, shared)
+def _create_constraint(
+    w_tensor, t_id, dim, constraint_range, shared=None, debug_name=None
+):
+    return Constraint._create(w_tensor, t_id, dim, constraint_range, shared, debug_name)
 
 
 @dataclasses.dataclass
@@ -108,6 +114,7 @@ class Constraint(_ConstraintTarget, metaclass=_ConstraintFactory):
     # Represent that `constraint_range` is shared with another _ConstraintTarget, which
     # typically arises because of a specified equality with another dynamic dimension.
     shared: Optional[_ConstraintTarget] = None
+    debug_name: Optional[str] = None
 
     def _clone_with_range(self, lower=2, upper=sympy.oo):
         from torch.utils._sympy.value_ranges import ValueRanges
@@ -117,7 +124,12 @@ class Constraint(_ConstraintTarget, metaclass=_ConstraintFactory):
             warn_only=False,
         )
         return _create_constraint(
-            self.w_tensor, self.t_id, self.dim, constraint_range, self.shared
+            self.w_tensor,
+            self.t_id,
+            self.dim,
+            constraint_range,
+            self.shared,
+            self.debug_name,
         )
 
     def __ge__(self, lower):
@@ -177,12 +189,18 @@ class Constraint(_ConstraintTarget, metaclass=_ConstraintFactory):
             vr=self.constraint_range.vr & other.constraint_range.vr,
             warn_only=False,
         )
+        if self.debug_name is None:
+            debug_name = other.debug_name
+        else:
+            assert other.debug_name is None or self.debug_name == other.debug_name
+            debug_name = self.debug_name
         return _create_constraint(
             self.w_tensor,
             self.t_id,
             self.dim,
             constraint_range,
             shared=_ConstraintTarget(other.w_tensor, other.t_id, other.dim),
+            debug_name=debug_name,
         )
 
 
@@ -423,6 +441,7 @@ def export(
     kwargs: Optional[Dict[str, Any]] = None,
     *,
     constraints: Optional[List[Constraint]] = None,
+    dynamic_shapes: Optional[Dict[str, Any]] = None,
 ) -> ExportedProgram:
     """
     :func:`export` takes an arbitrary Python callable (an nn.Module, a function or
@@ -490,6 +509,9 @@ def export(
          range of shapes. See :func:`dynamic_dim` docstring for examples on
          how to use it.
 
+         dynamic_shapes: An experimental new feature designed to subsume ``constraints``.
+          (Documentation TODO.)
+
     Returns:
         An :class:`ExportedProgram` containing the traced callable.
 
@@ -504,9 +526,12 @@ def export(
 
     """
 
-    from torch._export import export
+    from torch._export import export, export__RC__
 
-    return export(f, args, kwargs, constraints)
+    if constraints is not None:
+        return export(f, args, kwargs, constraints)
+    else:
+        return export__RC__(f, args, kwargs, dynamic_shapes=dynamic_shapes)
 
 
 def save(
