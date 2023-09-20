@@ -1184,7 +1184,7 @@ aot_inductor_launcher = """
     class AOTInductorModelHolder {
     public:
         AOTInductorModelHolder() {
-            AOT_INDUCTOR_ERROR_CHECK(AOTInductorModelContainerCreate(&container_handle, 1 /*num_models*/));
+            AOT_INDUCTOR_ERROR_CHECK(AOTInductorModelContainerCreate(&container_handle, 1 /*num_models*/, false /*is_cpu*/));
         }
 
         ~AOTInductorModelHolder() {
