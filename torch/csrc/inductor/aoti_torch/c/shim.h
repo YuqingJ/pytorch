@@ -141,6 +141,11 @@ AOTI_TORCH_EXPORT AOTI_TORCH_NOINLINE AOTITorchError aoti_torch_empty_strided(
     int32_t device_type,
     int32_t device_index);
 
+// This function will create a new uninitialized tensor object
+// and its pointer is returned through *out.
+AOTI_TORCH_EXPORT AOTI_TORCH_NOINLINE AOTITorchError aoti_torch_new_tensor(
+    AtenTensorHandle* ret);
+
 AOTI_TORCH_EXPORT AOTI_TORCH_NOINLINE AOTITorchError
 aoti_torch_tensor_copy_(AtenTensorHandle src, AtenTensorHandle dst);
 

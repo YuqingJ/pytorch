@@ -147,6 +147,13 @@ AOTITorchError aoti_torch_empty_strided(
   });
 }
 
+AOTITorchError aoti_torch_new_tensor(AtenTensorHandle* ret) {
+  AOTI_TORCH_CONVERT_EXCEPTION_TO_ERROR_CODE({
+    at::Tensor* out_tensor = new at::Tensor();
+    *ret = tensor_pointer_to_tensor_handle(out_tensor);
+  });
+}
+
 // TODO: implement a more efficient version instead of calling into aten
 AOTITorchError aoti_torch_tensor_copy_(
     AtenTensorHandle src,
