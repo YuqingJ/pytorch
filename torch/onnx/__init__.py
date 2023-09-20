@@ -45,8 +45,8 @@ from .utils import (
 
 from ._internal.exporter import (  # usort:skip. needs to be last to avoid circular import
     ExportOptions,
-    ExportOutput,
-    ExportOutputSerializer,
+    ONNXExportedProgram,
+    ONNXExportedProgramSerializer,
     dynamo_export,
     OnnxExporterError,
     enable_fake_mode,
@@ -99,8 +99,8 @@ __all__ = [
     "CheckerError",  # Backwards compatibility
     # Dynamo Exporter
     "ExportOptions",
-    "ExportOutput",
-    "ExportOutputSerializer",
+    "ONNXExportedProgram",
+    "ONNXExportedProgramSerializer",
     "dynamo_export",
     "OnnxExporterError",
     "enable_fake_mode",
@@ -114,8 +114,8 @@ __all__ = [
 ExportTypes.__module__ = "torch.onnx"
 JitScalarType.__module__ = "torch.onnx"
 ExportOptions.__module__ = "torch.onnx"
-ExportOutput.__module__ = "torch.onnx"
-ExportOutputSerializer.__module__ = "torch.onnx"
+ONNXExportedProgram.__module__ = "torch.onnx"
+ONNXExportedProgramSerializer.__module__ = "torch.onnx"
 dynamo_export.__module__ = "torch.onnx"
 OnnxExporterError.__module__ = "torch.onnx"
 enable_fake_mode.__module__ = "torch.onnx"
